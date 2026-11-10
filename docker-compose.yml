@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: local-speech-studio:gpu
+    container_name: speech-studio-gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ports:
+      - "6080:6080"
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./cache/huggingface:/root/.cache/huggingface
+    restart: unless-stopped
+    command: studio
+
+  verify:
+    image: local-speech-studio:gpu
+    container_name: speech-studio-verify
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: verify
+
+  test:
+    image: local-speech-studio:gpu
+    container_name: speech-studio-test
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./cache/huggingface:/root/.cache/huggingface
+    command: test
+

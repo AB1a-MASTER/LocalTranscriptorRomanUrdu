@@ -1,0 +1,81 @@
+# ==============================================================================
+# Local Speech Studio — .gitignore
+# Prevents any test footage, personal media, generated transcripts, model weights,
+# virtual environments, and build artifacts from being published publicly.
+# ==============================================================================
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# User Media & Test Footage (CRITICAL: Never track media files)
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+cache/
+logs/
+scratch/
+handoff.md
+
+# Audio and Video Containers (Globally Ignored)
+*.wav
+*.mp3
+*.mp4
+*.m4a
+*.aac
+*.flac
+*.ogg
+*.opus
+*.mkv
+*.mov
+*.avi
+*.wmv
+*.webm
+*.ts
+*.mts
+*.m2ts
+
+# Downloaded AI Model Weights (Gigabytes)
+models/*
+!models/.gitkeep
+!models/README.txt
+*.bin
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.ckpt
+
+# Distribution, Binaries & Archives
+dist/
+build/
+bin/
+*.exe
+*.dll
+*.zip
+*.tar
+*.gz
+*.7z
+
+# Legacy / Sub-repositories
+roman-urdu-speech-to-text/
+LocalTranscriptorRomanUrdu/
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+ehthumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

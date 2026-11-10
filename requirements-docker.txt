@@ -1,0 +1,18 @@
+# Local Speech Studio - Lean Docker Requirements (~300 MB total)
+# ==============================================================
+
+# Core GPU ASR Engine (CTranslate2 links natively to CUDA & cuDNN)
+faster-whisper==1.2.1
+ctranslate2==4.8.4
+
+# Audio Processing & Fallback
+sounddevice==0.5.6
+soundfile>=0.12.1
+imageio-ffmpeg>=0.4.9
+av>=11.0.0
+numpy>=1.24.0,<2.1.0
+
+# Text & NLP Utilities
+regex
+tqdm
+huggingface-hub>=0.20.0

@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Speech Studio 2.0</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    /* Responsive custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(150, 150, 150, 0.25); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(150, 150, 150, 0.45); }
+    
+    .urdu-text {
+      font-family: 'Jameel Noori Nastaleeq', 'Urdu Typesetting', 'Noto Nastaliq Urdu', 'Segoe UI', Tahoma, serif;
+      line-height: 1.9;
+    }
+
+    /* Light/Dark mode transitions */
+    body {
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans antialiased h-screen overflow-hidden flex flex-col select-none">
+
+  <!-- Top Title & Hardware Bar -->
+  <header class="h-12 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur px-4 flex items-center justify-between flex-shrink-0 z-10">
+    <div class="flex items-center space-x-3">
+      <!-- Window Controls Simulation -->
+      <div class="flex space-x-1.5 mr-2">
+        <span class="w-3 h-3 rounded-full bg-red-500/80 inline-block"></span>
+        <span class="w-3 h-3 rounded-full bg-amber-500/80 inline-block"></span>
+        <span class="w-3 h-3 rounded-full bg-emerald-500/80 inline-block"></span>
+      </div>
+      <div class="flex items-center space-x-2">
+        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+        <span class="font-semibold text-sm tracking-wide text-zinc-100">Local Speech Studio</span>
+        <span id="badgeCuda" class="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700 font-mono">Checking Hardware...</span>
+      </div>
+    </div>
+
+    <!-- Active Media Status / Breadcrumb -->
+    <div id="fileBreadcrumb" class="hidden text-xs text-zinc-400 flex items-center space-x-1.5">
+      <span id="topFilename" class="text-zinc-200 font-medium">filename.mp4</span>
+      <span class="text-zinc-600">•</span>
+      <span id="topDuration">00:00</span>
+      <span class="text-zinc-600">•</span>
+      <span id="topModel" class="text-indigo-400 font-medium">Whisper Large-v3-Turbo</span>
+    </div>
+
+    <!-- Right Quick Actions -->
+    <div class="flex items-center space-x-2">
+      <button onclick="triggerFileSelect()" class="px-2.5 py-1 text-xs rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition flex items-center space-x-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+        <span>Open File</span>
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 transition" title="Toggle Light/Dark Theme">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Hidden File Input (supports all camera & broadcast footage formats) -->
+  <input type="file" id="fileInput" class="hidden" accept=".mp4,.mov,.mkv,.avi,.m4v,.ts,.mts,.m2ts,.wmv,.webm,.flv,.3gp,.wav,.mp3,.m4a,.aac,.flac,.ogg,.opus,video/*,audio/*" onchange="handleFileSelected(event)">
+
+  <!-- 3-Column Studio Body -->
+  <div class="flex flex-1 overflow-hidden relative">
+    
+    <!-- Column 1: Sidebar Navigation (MacWhisper Style) -->
+    <aside class="w-56 border-r border-zinc-800 bg-zinc-900/50 flex flex-col justify-between p-3 select-none flex-shrink-0">
+      <div class="space-y-4">
+        <!-- Main Nav -->
+        <div class="space-y-1">
+          <div class="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase px-2 mb-1.5">Studio</div>
+          <button class="w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 text-zinc-100 shadow-sm">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+            <span>Current Workspace</span>
+          </button>
+        </div>
+
+        <!-- History / Output Subtitles -->
+        <div class="space-y-1">
+          <div class="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase px-2 mb-1.5">Recent Transcripts</div>
+          <div id="historyList" class="space-y-1 overflow-y-auto max-h-56 pr-1 text-xs">
+            <div class="text-zinc-500 px-2 py-1 text-[11px]">Loading history...</div>
+          </div>
+        </div>
+
+        <!-- Speakers Identified -->
+        <div class="space-y-1">
+          <div class="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase px-2 mb-1.5">Speakers</div>
+          <div id="speakerPills" class="space-y-1">
+            <div class="flex items-center space-x-2 px-2 py-1 rounded text-xs text-zinc-300">
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+              <span>Speaker 1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Engine Hardware Card -->
+      <div class="bg-zinc-800/60 border border-zinc-800 rounded-lg p-2.5 text-xs space-y-1">
+        <div class="text-zinc-400 text-[11px] font-medium flex justify-between">
+          <span>Engine Model:</span>
+          <span id="sidebarModelText" class="text-indigo-400 font-semibold">Turbo (809M)</span>
+        </div>
+        <div id="sidebarDeviceText" class="text-zinc-500 text-[10px]">Faster-Whisper • Auto</div>
+      </div>
+    </aside>
+
+    <!-- Column 2: Center Workspace (Empty Dropzone or Live Transcript Stream) -->
+    <main class="flex-1 flex flex-col bg-zinc-950 overflow-hidden relative">
+      
+      <!-- Live Progress & Dynamic ETA Banner (Visible only during transcription) -->
+      <div id="progressBanner" class="hidden bg-zinc-900/95 border-b border-indigo-500/20 px-6 py-2.5 flex items-center justify-between flex-shrink-0 shadow-md">
+        <div class="flex items-center space-x-3 flex-1 max-w-xl">
+          <div class="flex items-center space-x-2">
+            <span class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
+            </span>
+            <span id="progressStatusText" class="text-xs font-semibold text-zinc-200">Decoding audio...</span>
+          </div>
+          <!-- True Audio Percentage Bar -->
+          <div class="flex-1 bg-zinc-800 rounded-full h-2 overflow-hidden">
+            <div id="progressBarFill" class="bg-indigo-500 h-full rounded-full transition-all duration-300" style="width: 0%;"></div>
+          </div>
+          <span id="progressPctText" class="text-xs font-mono font-medium text-indigo-400">0%</span>
+        </div>
+        <div class="flex items-center space-x-3">
+          <div class="text-xs text-zinc-400 font-mono">
+            Speed: <span id="progressSpeedText" class="text-emerald-400 font-bold">--x</span> • ETA: <span id="progressEtaText" class="text-zinc-200 font-semibold">calculating...</span>
+          </div>
+          <button onclick="cancelTranscription()" class="px-2 py-0.5 text-[11px] bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 rounded transition">Cancel</button>
+        </div>
+      </div>
+
+      <!-- View 1: Empty Dropzone State -->
+      <div id="emptyState" class="flex-1 flex items-center justify-center p-8">
+        <div class="max-w-md w-full bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-8 text-center space-y-5 hover:border-zinc-700/80 transition" ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
+          <div class="w-16 h-16 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto shadow-inner">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+          </div>
+          <div class="space-y-1.5">
+            <h2 class="text-lg font-semibold text-zinc-100">Open an Audio or Video File</h2>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Drag and drop media here or click below to transcribe locally.<br>
+              Supports WAV, MP3, MP4, MKV, M4A, FLAC, AAC, WebM.
+            </p>
+          </div>
+          <button onclick="triggerFileSelect()" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-lg shadow-indigo-600/20 transition inline-flex items-center space-x-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+            <span>Choose Media File...</span>
+          </button>
+          <div class="text-[11px] text-zinc-500 pt-2 border-t border-zinc-800/60">
+            🔒 100% Offline & Local — Audio is processed entirely on your machine.
+          </div>
+        </div>
+      </div>
+
+      <!-- Transcript Control Bar (Search, Match Count, Bulk Actions) -->
+      <div id="transcriptControlBar" class="hidden px-8 py-2.5 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center space-x-2 flex-1 max-w-md">
+          <svg class="w-4 h-4 text-zinc-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <input type="text" id="searchInput" placeholder="Search transcript in Urdu or English... (Ctrl+F)" oninput="onSearchInput(this.value)" class="bg-zinc-800/80 border border-zinc-700/80 rounded-lg px-2.5 py-1 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 flex-1">
+          <span id="searchMatchCount" class="text-[11px] font-mono text-zinc-400 whitespace-nowrap"></span>
+          <button id="btnClearSearch" onclick="clearSearch()" class="hidden text-zinc-400 hover:text-zinc-200 text-xs px-1">✕</button>
+        </div>
+        <div class="flex items-center space-x-3 text-xs text-zinc-400">
+          <span class="text-[11px] text-zinc-500 font-mono hidden sm:inline">Space: Play/Pause • J/L: ±5s</span>
+          <button onclick="copyAllText('roman')" class="hover:text-indigo-400 transition" title="Copy all Roman Urdu text">Copy Roman</button>
+          <span class="text-zinc-700">•</span>
+          <button onclick="copyAllText('urdu')" class="hover:text-indigo-400 transition" title="Copy all Urdu script text">Copy Urdu</button>
+        </div>
+      </div>
+
+      <!-- View 2: Active Transcript Stream (60fps Scrollable) -->
+      <div id="transcriptView" class="hidden flex-1 overflow-y-auto px-8 py-6 space-y-4">
+        <!-- Segments dynamically rendered here -->
+      </div>
+
+      <!-- Bottom Audio Scrubber & Waveform Player (MacWhisper Style) -->
+      <footer id="mediaPlayerFooter" class="hidden h-20 border-t border-zinc-800 bg-zinc-900/90 backdrop-blur px-6 flex flex-col justify-center flex-shrink-0 z-10">
+        <!-- Waveform timeline scrub bar -->
+        <div class="relative w-full h-6 mb-1.5 flex items-center cursor-pointer group" onclick="seekAudioBar(event)">
+          <!-- Background track -->
+          <div class="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden relative">
+            <div id="playerProgressFill" class="bg-indigo-500 h-full rounded-full" style="width: 0%;"></div>
+          </div>
+          <!-- Playhead indicator -->
+          <div id="playerThumb" class="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md border border-indigo-500 pointer-events-none transition-all duration-75" style="left: 0%;"></div>
+        </div>
+
+        <!-- Media Player Controls -->
+        <div class="flex items-center justify-between text-xs text-zinc-300">
+          <div class="flex items-center space-x-3">
+            <button onclick="skipAudio(-5)" class="p-1.5 rounded-full hover:bg-zinc-800 transition text-zinc-400 hover:text-zinc-200" title="Rewind 5s">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.5 12l8.5 6V6l-8.5 6zm-9 0l8.5 6V6L3.5 12z"/></svg>
+            </button>
+            <button id="btnPlayPause" onclick="togglePlay()" class="w-8 h-8 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow transition">
+              <svg id="playIcon" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button onclick="skipAudio(5)" class="p-1.5 rounded-full hover:bg-zinc-800 transition text-zinc-400 hover:text-zinc-200" title="Forward 5s">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M2.5 12l8.5 6V6l-8.5 6zm9 0l8.5 6V6l-8.5 6z" transform="rotate(180 12 12)"/></svg>
+            </button>
+            <span class="font-mono text-zinc-400 ml-2">
+              <span id="timeCurrent">00:00:00</span> <span class="text-zinc-600">/</span> <span id="timeTotal">00:00:00</span>
+            </span>
+          </div>
+
+          <div class="flex items-center space-x-4">
+            <!-- Playback Speed Pills -->
+            <div class="flex items-center bg-zinc-800 rounded-lg p-0.5 text-[11px] font-medium">
+              <button onclick="setSpeed(0.8, this)" class="px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 speed-pill">0.8x</button>
+              <button onclick="setSpeed(1.0, this)" class="px-2 py-0.5 rounded bg-zinc-700 text-white shadow-sm font-semibold speed-pill">1.0x</button>
+              <button onclick="setSpeed(1.2, this)" class="px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 speed-pill">1.2x</button>
+              <button onclick="setSpeed(1.5, this)" class="px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 speed-pill">1.5x</button>
+            </div>
+            <!-- Action: Start Transcribing (if loaded) -->
+            <button id="btnTranscribeAction" onclick="startTranscription()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow transition flex items-center space-x-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span>Transcribe Now</span>
+            </button>
+          </div>
+        </div>
+        <!-- Hidden HTML5 Audio Player -->
+        <audio id="audioElement" class="hidden" ontimeupdate="onAudioTimeUpdate()" onended="onAudioEnded()"></audio>
+      </footer>
+    </main>
+
+    <!-- Column 3: Inspector & Tweaks Panel (MacWhisper Style) -->
+    <aside class="w-72 border-l border-zinc-800 bg-zinc-900/60 p-4 flex flex-col justify-between overflow-y-auto select-none flex-shrink-0 space-y-6">
+      <div class="space-y-5">
+        
+        <!-- View Toggle: Segments vs Plain Text -->
+        <div class="grid grid-cols-2 gap-1 p-1 bg-zinc-800/80 rounded-xl text-xs font-medium">
+          <button id="tabSegments" onclick="switchViewMode('segments')" class="py-1.5 rounded-lg bg-zinc-700 text-white shadow-sm font-semibold">Segments</button>
+          <button id="tabPlainText" onclick="switchViewMode('plain')" class="py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition">Full Text</button>
+        </div>
+
+        <!-- Script View Switcher -->
+        <div class="space-y-2">
+          <label class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Display Script</label>
+          <div class="grid grid-cols-3 gap-1 p-1 bg-zinc-800/60 rounded-lg text-[11px] text-center font-medium">
+            <button id="scriptBoth" onclick="setScriptFilter('both')" class="py-1 rounded bg-indigo-600 text-white font-semibold script-btn">Both</button>
+            <button id="scriptRoman" onclick="setScriptFilter('roman')" class="py-1 rounded text-zinc-400 hover:text-zinc-200 script-btn">Roman</button>
+            <button id="scriptUrdu" onclick="setScriptFilter('urdu')" class="py-1 rounded text-zinc-400 hover:text-zinc-200 script-btn">Urdu</button>
+          </div>
+        </div>
+
+        <!-- ASR Engine Settings -->
+        <div class="space-y-3 pt-2 border-t border-zinc-800">
+          <div class="flex items-center justify-between">
+            <label class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Whisper Model</label>
+          </div>
+          <select id="selectModel" onchange="onModelChange()" class="w-full bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500">
+            <option value="large-v3-turbo" selected>Whisper Large-v3-Turbo (809M • Fast)</option>
+            <option value="large-v3">Whisper Large-v3 Full (1550M • High Accuracy)</option>
+            <option value="Loudness-ai/urdu-sukhan-asr-v1">Urdu Sukhan ASR v1 (Fine-tuned)</option>
+          </select>
+
+          <!-- Precision selector -->
+          <div class="space-y-1">
+            <label class="text-[11px] text-zinc-400 font-medium">Compute Precision</label>
+            <select id="selectCompute" class="w-full bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500">
+              <option value="float16" selected>float16 (High Accuracy • GPU)</option>
+              <option value="float32">float32 (Pure 32-bit Float)</option>
+              <option value="int8">int8 (Optimized CPU)</option>
+            </select>
+          </div>
+
+          <!-- Silero VAD Toggle -->
+          <div class="flex items-center justify-between py-1">
+            <div class="space-y-0.5">
+              <div class="text-xs text-zinc-300 font-medium">Silero VAD Filter</div>
+              <div class="text-[10px] text-zinc-500">Eliminates noise & silence hallucinations</div>
+            </div>
+            <input type="checkbox" id="checkVad" checked class="w-4 h-4 accent-indigo-600 rounded">
+          </div>
+
+          <!-- Greedy Decoding vs Beam Search -->
+          <div class="flex items-center justify-between py-1">
+            <div class="space-y-0.5">
+              <div class="text-xs text-zinc-300 font-medium">Fast Greedy Mode</div>
+              <div class="text-[10px] text-zinc-500">3x speedup, prevents beam loops</div>
+            </div>
+            <input type="checkbox" id="checkGreedy" checked class="w-4 h-4 accent-indigo-600 rounded">
+          </div>
+        </div>
+
+        <!-- Font Size Slider -->
+        <div class="space-y-1.5 pt-2 border-t border-zinc-800">
+          <div class="flex justify-between text-xs text-zinc-400">
+            <span>Font Size</span>
+            <span id="fontSizeDisplay" class="font-mono text-zinc-300">16px</span>
+          </div>
+          <input type="range" id="sliderFontSize" min="12" max="24" value="16" oninput="onFontSizeChange(this.value)" class="w-full h-1 bg-zinc-700 rounded appearance-none accent-indigo-500">
+        </div>
+      </div>
+
+      <!-- Quick Export Center -->
+      <div class="space-y-2 pt-4 border-t border-zinc-800">
+        <label class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">Export Subtitles & Data</label>
+
+        <div class="grid grid-cols-2 gap-1.5">
+          <button onclick="downloadExport('roman_srt')" class="py-2 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition flex items-center justify-center space-x-1" title="Roman Urdu SRT subtitle file">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+            <span>Roman SRT</span>
+          </button>
+          <button onclick="downloadExport('urdu_srt')" class="py-2 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition flex items-center justify-center space-x-1" title="Urdu Nastaliq Script SRT">
+            <span>Urdu SRT</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-1.5">
+          <button onclick="downloadExport('vtt')" class="py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition" title="WebVTT subtitle file for web video players">
+            WebVTT (.vtt)
+          </button>
+          <button onclick="downloadExport('json')" class="py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition" title="JSON with word-level start and end timestamps">
+            Word JSON (.json)
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-1.5">
+          <button onclick="downloadExport('csv')" class="py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition" title="Spreadsheet review table">
+            Review Table (.csv)
+          </button>
+          <button onclick="downloadExport('txt')" class="py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition" title="Plain text transcript">
+            Plain Text (.txt)
+          </button>
+        </div>
+
+        <!-- 1-Click Clipboard Copy Suite -->
+        <div class="pt-2 border-t border-zinc-800/80 space-y-1">
+          <span class="text-[10px] uppercase font-semibold text-zinc-500">Copy to Clipboard</span>
+          <div class="grid grid-cols-3 gap-1 text-[11px]">
+            <button onclick="copyAllText('roman')" class="py-1 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 transition">Roman</button>
+            <button onclick="copyAllText('urdu')" class="py-1 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 transition">Urdu</button>
+            <button onclick="copyAllText('srt')" class="py-1 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 transition">Full SRT</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Client Application Logic -->
+  <script>
+    let activeMedia = null;
+    let allSegments = [];
+    let activeSegmentIndex = -1;
+    let currentFilter = 'both';
+    let currentViewMode = 'segments';
+    let sseSource = null;
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchStatus();
+      fetchHistory();
+      connectSSE();
+
+      const audio = document.getElementById('audioElement');
+      if (audio) {
+        audio.addEventListener('play', () => {
+          startPlaybackTracker();
+          const pIcon = document.getElementById('playIcon');
+          if (pIcon) pIcon.outerHTML = '<svg id="playIcon" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+        });
+        audio.addEventListener('pause', () => {
+          stopPlaybackTracker();
+          const pIcon = document.getElementById('playIcon');
+          if (pIcon) pIcon.outerHTML = '<svg id="playIcon" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+        });
+        audio.addEventListener('seeked', () => {
+          updatePlaybackHighlights();
+        });
+      }
+    });
+
+    // 1. Hardware & System Status
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const badge = document.getElementById('badgeCuda');
+        if (data.cuda_available) {
+          badge.className = "text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono";
+          badge.innerText = `CUDA GPU (${data.device_name || 'Active'})`;
+        } else {
+          badge.className = "text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700 font-mono";
+          badge.innerText = `CPU (${data.cpu_threads || 8} Threads)`;
+        }
+        document.getElementById('sidebarDeviceText').innerText = data.cuda_available ? 'CUDA · ' + data.compute_type : 'CPU int8';
+      } catch (err) {
+        console.error('Failed to fetch status:', err);
+      }
+    }
+
+    // 2. Recent Transcripts History
+    async function fetchHistory() {
+      try {
+        const res = await fetch('/api/history');
+        const items = await res.json();
+        const container = document.getElementById('historyList');
+        if (!items || items.length === 0) {
+          container.innerHTML = '<div class="text-zinc-500 px-2 py-1 text-[11px]">No recent files</div>';
+          return;
+        }
+        container.innerHTML = items.map(item => `
+          <div onclick="loadHistoryItem('${encodeURIComponent(item.filename)}')" class="px-2 py-1.5 rounded-lg text-zinc-300 hover:bg-zinc-800/70 transition cursor-pointer flex justify-between items-center group">
+            <span class="truncate font-medium">${item.filename}</span>
+            <span class="text-[10px] text-zinc-500 group-hover:text-zinc-300">${item.size_kb} KB</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to fetch history:', err);
+      }
+    }
+
+    async function loadHistoryItem(encFilename) {
+      const filename = decodeURIComponent(encFilename);
+      try {
+        const res = await fetch(`/api/load-history?name=${encodeURIComponent(filename)}`);
+        const data = await res.json();
+        if (data.success) {
+          allSegments = data.segments || [];
+          activeMedia = {
+            filename: data.filename,
+            wav_name: data.wav_name || '',
+            duration: data.duration,
+            duration_formatted: data.duration_formatted,
+          };
+
+          document.getElementById('emptyState').classList.add('hidden');
+          document.getElementById('transcriptControlBar').classList.remove('hidden');
+          document.getElementById('transcriptView').classList.remove('hidden');
+          document.getElementById('mediaPlayerFooter').classList.remove('hidden');
+          document.getElementById('fileBreadcrumb').classList.remove('hidden');
+
+          document.getElementById('topFilename').innerText = data.filename;
+          document.getElementById('topDuration').innerText = data.duration_formatted || '00:00';
+          document.getElementById('timeTotal').innerText = data.duration_formatted || '00:00:00';
+
+          const audio = document.getElementById('audioElement');
+          if (data.wav_name) {
+            audio.src = `/media/${encodeURIComponent(data.wav_name)}`;
+            audio.load();
+          }
+
+          renderAllSegments();
+        } else {
+          alert('Could not load transcript: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to load transcript: ' + err.message);
+      }
+    }
+
+    // 3. SSE Connection for Live Progress
+    function connectSSE() {
+      if (sseSource) sseSource.close();
+      sseSource = new EventSource('/api/events');
+
+      sseSource.addEventListener('progress', (e) => {
+        const payload = JSON.parse(e.data).data;
+        document.getElementById('progressBanner').classList.remove('hidden');
+        document.getElementById('progressBarFill').style.width = `${payload.progress_pct}%`;
+        document.getElementById('progressPctText').innerText = `${payload.progress_pct}%`;
+        document.getElementById('progressSpeedText').innerText = `${payload.speed_factor}x`;
+        document.getElementById('progressEtaText').innerText = `~${payload.eta_seconds}s left`;
+
+        if (payload.latest_segment) {
+          appendSegment(payload.latest_segment);
+        }
+      });
+
+      sseSource.addEventListener('status', (e) => {
+        const payload = JSON.parse(e.data).data;
+        document.getElementById('progressBanner').classList.remove('hidden');
+        document.getElementById('progressStatusText').innerText = payload.message || 'Processing...';
+      });
+
+      sseSource.addEventListener('completed', (e) => {
+        const payload = JSON.parse(e.data).data;
+        document.getElementById('progressBanner').classList.add('hidden');
+        const btn = document.getElementById('btnTranscribeAction');
+        btn.disabled = false;
+        btn.className = "px-3 py-1.5 rounded-lg bg-zinc-700 text-white font-semibold text-xs shadow transition flex items-center space-x-1.5";
+        btn.innerHTML = '<span>Transcribed ✓</span>';
+
+        if (payload.segments && payload.segments.length > 0) {
+          allSegments = payload.segments;
+          renderAllSegments();
+        }
+        fetchHistory();
+      });
+
+      sseSource.addEventListener('error', (e) => {
+        document.getElementById('progressBanner').classList.add('hidden');
+        resetTranscribeBtn();
+      });
+    }
+
+    // 4. File Handling & Upload
+    function triggerFileSelect() {
+      // Native browser file dialog: opens in 0ms directly from the browser window
+      const input = document.getElementById('fileInput');
+      input.value = ''; // Reset so the same file can be selected again
+      input.click();
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      if (e.dataTransfer.files.length > 0) {
+        uploadFile(e.dataTransfer.files[0]);
+      }
+    }
+
+    function handleFileSelected(e) {
+      if (e.target.files.length > 0) {
+        uploadFile(e.target.files[0]);
+      }
+    }
+
+    function onMediaLoaded(data) {
+      activeMedia = data;
+      allSegments = [];
+
+      // Switch to workspace view
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('transcriptControlBar').classList.remove('hidden');
+      document.getElementById('transcriptView').classList.remove('hidden');
+      document.getElementById('mediaPlayerFooter').classList.remove('hidden');
+      document.getElementById('fileBreadcrumb').classList.remove('hidden');
+
+      document.getElementById('topFilename').innerText = data.filename;
+      document.getElementById('topDuration').innerText = data.duration_formatted || '00:00';
+      document.getElementById('timeTotal').innerText = data.duration_formatted || '00:00:00';
+
+      // Reset Transcribe button
+      const btn = document.getElementById('btnTranscribeAction');
+      btn.disabled = false;
+      btn.className = "px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow transition flex items-center space-x-1.5";
+      btn.innerHTML = `
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span>Transcribe Now</span>
+      `;
+
+      // Set audio element source
+      const audio = document.getElementById('audioElement');
+      audio.src = `/media/${encodeURIComponent(data.wav_name)}`;
+      audio.load();
+
+      document.getElementById('transcriptView').innerHTML = `
+        <div class="text-center py-12 text-zinc-500 text-xs">
+          Footage loaded (${data.duration_formatted || 'Ready'}). Click <strong class="text-emerald-400">Transcribe Now</strong> below to start recognition.
+        </div>
+      `;
+    }
+
+    function uploadFile(file) {
+      const banner = document.getElementById('progressBanner');
+      banner.classList.remove('hidden');
+      document.getElementById('progressBarFill').style.width = '0%';
+      document.getElementById('progressPctText').innerText = '0%';
+      document.getElementById('progressStatusText').innerText = `Importing footage: ${file.name}...`;
+
+      const xhr = new XMLHttpRequest();
+      const startTime = Date.now();
+
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          const elapsedSec = (Date.now() - startTime) / 1000;
+          const mbUploaded = (e.loaded / (1024 * 1024)).toFixed(1);
+          const mbTotal = (e.total / (1024 * 1024)).toFixed(1);
+          const speedMBs = elapsedSec > 0 ? (e.loaded / (1024 * 1024) / elapsedSec).toFixed(1) : '0.0';
+
+          document.getElementById('progressBarFill').style.width = `${pct}%`;
+          document.getElementById('progressPctText').innerText = `${pct}%`;
+          document.getElementById('progressStatusText').innerText = `Importing: ${mbUploaded} / ${mbTotal} MB (${speedMBs} MB/s)`;
+          document.getElementById('progressSpeedText').innerText = `${speedMBs} MB/s`;
+          document.getElementById('progressEtaText').innerText = `${pct}%`;
+        }
+      };
+
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            banner.classList.add('hidden');
+            if (data.success) {
+              onMediaLoaded(data);
+            } else {
+              alert('Import failed: ' + (data.error || 'Unknown error'));
+            }
+          } catch (err) {
+            banner.classList.add('hidden');
+            alert('Error parsing server response: ' + err.message);
+          }
+        } else {
+          banner.classList.add('hidden');
+          alert('Upload HTTP error: ' + xhr.status + ' ' + xhr.statusText);
+        }
+      };
+
+      xhr.onerror = function() {
+        banner.classList.add('hidden');
+        alert('Upload network error. Please try again.');
+      };
+
+      xhr.open('POST', '/api/upload', true);
+      xhr.setRequestHeader('X-Filename', encodeURIComponent(file.name));
+      xhr.send(file);
+    }
+
+    function resetTranscribeBtn() {
+      const btn = document.getElementById('btnTranscribeAction');
+      btn.disabled = false;
+      btn.className = "px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow transition flex items-center space-x-1.5";
+      btn.innerHTML = `
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span>Transcribe Now</span>
+      `;
+    }
+
+    // 5. Start & Cancel Transcription
+    async function startTranscription() {
+      if (!activeMedia) return;
+
+      const model = document.getElementById('selectModel').value;
+      const compute = document.getElementById('selectCompute').value;
+      const vad = document.getElementById('checkVad').checked;
+      const greedy = document.getElementById('checkGreedy').checked;
+
+      const btn = document.getElementById('btnTranscribeAction');
+      btn.disabled = true;
+      btn.className = "px-3 py-1.5 rounded-lg bg-indigo-700/80 text-white font-semibold text-xs shadow transition flex items-center space-x-1.5 opacity-90 cursor-not-allowed";
+      btn.innerHTML = `
+        <svg class="animate-spin -ml-0.5 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+        <span>Transcribing...</span>
+      `;
+
+      document.getElementById('transcriptView').innerHTML = '';
+      allSegments = [];
+
+      try {
+        const res = await fetch('/api/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: activeMedia.wav_name || activeMedia.filename,
+            model: model,
+            compute_type: compute,
+            vad: vad,
+            beam_size: greedy ? 1 : 5,
+            language: 'ur',
+          })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          alert('Error: ' + data.error);
+          resetTranscribeBtn();
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+        resetTranscribeBtn();
+      }
+    }
+
+    async function cancelTranscription() {
+      await fetch('/api/cancel', { method: 'POST' });
+      resetTranscribeBtn();
+    }
+
+    // 6. Tokenized Segment Rendering & Synchronization
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function renderSegmentCard(seg, idx) {
+      const card = document.createElement('div');
+      card.id = `seg-${idx}`;
+      card.className = "seg-card group relative flex space-x-4 p-4 rounded-xl border border-zinc-800/40 bg-zinc-900/30 hover:bg-zinc-900/60 transition-all duration-150 cursor-pointer";
+      card.onclick = () => seekTo(seg.start);
+
+      let urduHtml = '';
+      let romanHtml = '';
+
+      if (seg.words && seg.words.length > 0) {
+        urduHtml = seg.words.map((w) => {
+          return `<span class="word-token word-urdu cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-300 hover:bg-zinc-800" data-start="${w.start}" data-end="${w.end}" onclick="event.stopPropagation(); seekTo(${w.start})">${escapeHtml(w.urdu)}</span>`;
+        }).join(' ');
+
+        romanHtml = seg.words.map((w) => {
+          return `<span class="word-token word-roman cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-400 hover:bg-zinc-800" data-start="${w.start}" data-end="${w.end}" onclick="event.stopPropagation(); seekTo(${w.start})">${escapeHtml(w.roman)}</span>`;
+        }).join(' ');
+      } else {
+        urduHtml = escapeHtml(seg.urdu);
+        romanHtml = escapeHtml(seg.roman);
+      }
+
+      card.innerHTML = `
+        <div class="seg-indicator w-1 bg-zinc-700 rounded-full flex-shrink-0 transition-all duration-200"></div>
+        <div class="seg-content-box flex-1 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="seg-speaker text-xs font-semibold text-zinc-400">Speaker 1</span>
+              <span class="seg-time text-[11px] font-mono text-zinc-500 hover:text-indigo-400">${seg.start_str || formatSeconds(seg.start)} --> ${seg.end_str || formatSeconds(seg.end)}</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <button onclick="event.stopPropagation(); toggleEditSegment(${idx})" class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-indigo-300 text-xs px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 transition flex items-center space-x-1" title="Edit subtitle">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                <span>Edit</span>
+              </button>
+              <button onclick="event.stopPropagation(); copyText('${encodeURIComponent(seg.roman)}')" class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-200 text-xs px-2 py-0.5 rounded bg-zinc-800 transition">Copy</button>
+            </div>
+          </div>
+          <!-- Urdu Script -->
+          <p class="seg-urdu text-base text-zinc-100 urdu-text leading-relaxed text-right font-medium" dir="rtl">
+            ${urduHtml}
+          </p>
+          <!-- Roman Urdu -->
+          <p class="seg-roman text-sm text-zinc-400 font-sans leading-normal">
+            ${romanHtml}
+          </p>
+        </div>
+      `;
+
+      applyFilterVisibility(card);
+      return card;
+    }
+
+    function appendSegment(seg) {
+      allSegments.push(seg);
+      if (currentViewMode === 'segments') {
+        const container = document.getElementById('transcriptView');
+        const idx = allSegments.length - 1;
+        const card = renderSegmentCard(seg, idx);
+        container.appendChild(card);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function renderAllSegments() {
+      const container = document.getElementById('transcriptView');
+      container.innerHTML = '';
+      if (!allSegments || allSegments.length === 0) return;
+
+      allSegments.forEach((seg, idx) => {
+        const card = renderSegmentCard(seg, idx);
+        container.appendChild(card);
+      });
+      updatePlaybackHighlights();
+    }
+
+    // 7. High-Precision Playback Tracking & Highlighting Engine
+    let animFrameId = null;
+    let activeSectionIdx = -1;
+    let activeWordKey = null;
+
+    function startPlaybackTracker() {
+      stopPlaybackTracker();
+      function loop() {
+        updatePlaybackHighlights();
+        const audio = document.getElementById('audioElement');
+        if (audio && !audio.paused && !audio.ended) {
+          animFrameId = requestAnimationFrame(loop);
+        }
+      }
+      animFrameId = requestAnimationFrame(loop);
+    }
+
+    function stopPlaybackTracker() {
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+    }
+
+    function setSectionActiveState(el, isActive) {
+      const indicator = el.querySelector('.seg-indicator');
+      const speaker = el.querySelector('.seg-speaker');
+      const time = el.querySelector('.seg-time');
+
+      if (isActive) {
+        el.classList.remove('border-zinc-800/40', 'bg-zinc-900/30', 'border-transparent');
+        el.classList.add('bg-indigo-950/40', 'border-indigo-500/80', 'ring-1', 'ring-indigo-500/50', 'shadow-lg', 'shadow-indigo-950/60');
+        if (indicator) {
+          indicator.className = "seg-indicator w-1.5 bg-indigo-400 rounded-full flex-shrink-0 shadow-[0_0_12px_rgba(129,140,248,0.8)] transition-all duration-200";
+        }
+        if (speaker) {
+          speaker.className = "seg-speaker text-xs font-bold text-indigo-300";
+        }
+        if (time) {
+          time.className = "seg-time text-[11px] font-mono text-indigo-400 font-semibold";
+        }
+      } else {
+        el.classList.remove('bg-indigo-950/40', 'border-indigo-500/80', 'ring-1', 'ring-indigo-500/50', 'shadow-lg', 'shadow-indigo-950/60');
+        el.classList.add('border-zinc-800/40', 'bg-zinc-900/30');
+        if (indicator) {
+          indicator.className = "seg-indicator w-1 bg-zinc-700 rounded-full flex-shrink-0 transition-all duration-200";
+        }
+        if (speaker) {
+          speaker.className = "seg-speaker text-xs font-semibold text-zinc-400";
+        }
+        if (time) {
+          time.className = "seg-time text-[11px] font-mono text-zinc-500";
+        }
+        // Reset word highlights inside deactivated card
+        el.querySelectorAll('.word-token').forEach(tok => {
+          tok.className = tok.classList.contains('word-urdu')
+            ? "word-token word-urdu cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-300 hover:bg-zinc-800"
+            : "word-token word-roman cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-400 hover:bg-zinc-800";
+        });
+      }
+    }
+
+    function updatePlaybackHighlights() {
+      const audio = document.getElementById('audioElement');
+      if (!audio || !allSegments.length || currentViewMode !== 'segments') return;
+      const cur = audio.currentTime;
+
+      // 1. Identify which section/segment is active
+      let foundSecIdx = -1;
+      for (let i = 0; i < allSegments.length; i++) {
+        const s = allSegments[i];
+        if (cur >= s.start && cur <= s.end) {
+          foundSecIdx = i;
+          break;
+        }
+      }
+
+      // 2. Section Highlighting & Auto-Scroll
+      if (foundSecIdx !== activeSectionIdx) {
+        // De-highlight previous section
+        if (activeSectionIdx >= 0) {
+          const prevEl = document.getElementById(`seg-${activeSectionIdx}`);
+          if (prevEl) setSectionActiveState(prevEl, false);
+        }
+        // Highlight new section
+        if (foundSecIdx >= 0) {
+          const newEl = document.getElementById(`seg-${foundSecIdx}`);
+          if (newEl) {
+            setSectionActiveState(newEl, true);
+            newEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }
+        activeSectionIdx = foundSecIdx;
+      }
+
+      // 3. Word Highlighting (Karaoke style as being spoken)
+      if (activeSectionIdx >= 0) {
+        const seg = allSegments[activeSectionIdx];
+        const segEl = document.getElementById(`seg-${activeSectionIdx}`);
+        if (!segEl) return;
+
+        const words = seg.words || [];
+        let currentWordIdx = -1;
+        for (let w = 0; w < words.length; w++) {
+          if (cur >= words[w].start && cur <= words[w].end) {
+            currentWordIdx = w;
+            break;
+          }
+        }
+
+        const wordKey = `${activeSectionIdx}-${currentWordIdx}`;
+        if (wordKey !== activeWordKey) {
+          activeWordKey = wordKey;
+          const tokens = segEl.querySelectorAll('.word-token');
+          tokens.forEach(tok => {
+            const tStart = parseFloat(tok.getAttribute('data-start'));
+            const tEnd = parseFloat(tok.getAttribute('data-end'));
+
+            if (cur >= tStart && cur <= tEnd) {
+              // ACTIVE WORD CURRENTLY SPOKEN
+              tok.className = tok.classList.contains('word-urdu')
+                ? "word-token word-urdu cursor-pointer px-1.5 py-0.5 rounded transition-all duration-75 inline-block text-white bg-indigo-600 font-bold shadow-[0_0_12px_rgba(99,102,241,0.85)] scale-[1.04] ring-1 ring-indigo-400"
+                : "word-token word-roman cursor-pointer px-1.5 py-0.5 rounded transition-all duration-75 inline-block text-white bg-indigo-600 font-bold shadow-[0_0_12px_rgba(99,102,241,0.85)] scale-[1.04] ring-1 ring-indigo-400";
+            } else if (cur > tEnd) {
+              // ALREADY SPOKEN IN THIS SECTION
+              tok.className = tok.classList.contains('word-urdu')
+                ? "word-token word-urdu cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-100 font-medium hover:bg-zinc-800"
+                : "word-token word-roman cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-200 font-medium hover:bg-zinc-800";
+            } else {
+              // UPCOMING IN THIS SECTION
+              tok.className = tok.classList.contains('word-urdu')
+                ? "word-token word-urdu cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-400 hover:bg-zinc-800"
+                : "word-token word-roman cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-500 hover:bg-zinc-800";
+            }
+          });
+        }
+      } else {
+        // Playhead outside any speech section
+        if (activeWordKey !== null) {
+          activeWordKey = null;
+          document.querySelectorAll('.word-token').forEach(tok => {
+            tok.className = tok.classList.contains('word-urdu')
+              ? "word-token word-urdu cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-300 hover:bg-zinc-800"
+              : "word-token word-roman cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-400 hover:bg-zinc-800";
+          });
+        }
+      }
+    }
+
+    function clearActiveHighlights() {
+      if (activeSectionIdx >= 0) {
+        const el = document.getElementById(`seg-${activeSectionIdx}`);
+        if (el) setSectionActiveState(el, false);
+        activeSectionIdx = -1;
+      }
+      activeWordKey = null;
+      document.querySelectorAll('.word-token').forEach(tok => {
+        tok.className = tok.classList.contains('word-urdu')
+          ? "word-token word-urdu cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-300 hover:bg-zinc-800"
+          : "word-token word-roman cursor-pointer px-1 py-0.5 rounded transition-all duration-75 inline-block text-zinc-400 hover:bg-zinc-800";
+      });
+    }
+
+    // 8. Audio Player Controls
+    function togglePlay() {
+      const audio = document.getElementById('audioElement');
+      if (audio.paused) {
+        audio.play();
+        startPlaybackTracker();
+        document.getElementById('playIcon').outerHTML = '<svg id="playIcon" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+      } else {
+        audio.pause();
+        stopPlaybackTracker();
+        document.getElementById('playIcon').outerHTML = '<svg id="playIcon" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+      }
+    }
+
+    function skipAudio(sec) {
+      const audio = document.getElementById('audioElement');
+      audio.currentTime = Math.max(0, Math.min(audio.duration || 0, audio.currentTime + sec));
+      updatePlaybackHighlights();
+    }
+
+    function seekTo(sec) {
+      const audio = document.getElementById('audioElement');
+      audio.currentTime = sec;
+      updatePlaybackHighlights();
+      if (audio.paused) {
+        togglePlay();
+      }
+    }
+
+    function seekAudioBar(e) {
+      const audio = document.getElementById('audioElement');
+      if (!audio.duration) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pct = (e.clientX - rect.left) / rect.width;
+      audio.currentTime = pct * audio.duration;
+      updatePlaybackHighlights();
+    }
+
+    function onAudioTimeUpdate() {
+      const audio = document.getElementById('audioElement');
+      if (!audio.duration) return;
+
+      const pct = (audio.currentTime / audio.duration) * 100;
+      document.getElementById('playerProgressFill').style.width = `${pct}%`;
+      document.getElementById('playerThumb').style.left = `${pct}%`;
+
+      document.getElementById('timeCurrent').innerText = formatSeconds(audio.currentTime);
+      updatePlaybackHighlights();
+    }
+
+    function onAudioEnded() {
+      stopPlaybackTracker();
+      clearActiveHighlights();
+      document.getElementById('playIcon').outerHTML = '<svg id="playIcon" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+    }
+
+    function setSpeed(rate, btn) {
+      const audio = document.getElementById('audioElement');
+      audio.playbackRate = rate;
+      document.querySelectorAll('.speed-pill').forEach(b => {
+        b.className = "px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 speed-pill";
+      });
+      btn.className = "px-2 py-0.5 rounded bg-zinc-700 text-white shadow-sm font-semibold speed-pill";
+    }
+
+    function formatSeconds(sec) {
+      const s = Math.floor(sec % 60);
+      const m = Math.floor((sec / 60) % 60);
+      const h = Math.floor(sec / 3600);
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    // 9. View Modes & Script Filters
+    function switchViewMode(mode) {
+      currentViewMode = mode;
+      const tabSeg = document.getElementById('tabSegments');
+      const tabPlain = document.getElementById('tabPlainText');
+      const container = document.getElementById('transcriptView');
+
+      if (mode === 'segments') {
+        tabSeg.className = "py-1.5 rounded-lg bg-zinc-700 text-white shadow-sm font-semibold";
+        tabPlain.className = "py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition";
+        renderAllSegments();
+      } else {
+        tabPlain.className = "py-1.5 rounded-lg bg-zinc-700 text-white shadow-sm font-semibold";
+        tabSeg.className = "py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition";
+
+        let plainUrdu = allSegments.map(s => s.urdu).join(' ');
+        let plainRoman = allSegments.map(s => s.roman).join(' ');
+        container.innerHTML = `
+          <div class="p-6 bg-zinc-900/40 border border-zinc-800/80 rounded-2xl space-y-6">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Urdu Text</span>
+                <button onclick="copyText('${encodeURIComponent(plainUrdu)}')" class="text-xs px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition">Copy</button>
+              </div>
+              <p class="urdu-text text-base leading-loose text-zinc-100 text-right" dir="rtl">${escapeHtml(plainUrdu)}</p>
+            </div>
+            <div class="border-t border-zinc-800 pt-4 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Roman Urdu / English Text</span>
+                <button onclick="copyText('${encodeURIComponent(plainRoman)}')" class="text-xs px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition">Copy</button>
+              </div>
+              <p class="text-sm font-sans leading-relaxed text-zinc-300">${escapeHtml(plainRoman)}</p>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // 8. Filters & Tweaks
+    function setScriptFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.script-btn').forEach(b => {
+        b.className = "py-1 rounded text-zinc-400 hover:text-zinc-200 script-btn";
+      });
+      if (filter === 'both') document.getElementById('scriptBoth').className = "py-1 rounded bg-indigo-600 text-white font-semibold script-btn";
+      if (filter === 'roman') document.getElementById('scriptRoman').className = "py-1 rounded bg-indigo-600 text-white font-semibold script-btn";
+      if (filter === 'urdu') document.getElementById('scriptUrdu').className = "py-1 rounded bg-indigo-600 text-white font-semibold script-btn";
+
+      document.querySelectorAll('#transcriptView > div').forEach(applyFilterVisibility);
+    }
+
+    function applyFilterVisibility(el) {
+      const urduEl = el.querySelector('.seg-urdu');
+      const romanEl = el.querySelector('.seg-roman');
+      if (!urduEl || !romanEl) return;
+
+      if (currentFilter === 'both') {
+        urduEl.style.display = 'block';
+        romanEl.style.display = 'block';
+      } else if (currentFilter === 'roman') {
+        urduEl.style.display = 'none';
+        romanEl.style.display = 'block';
+      } else if (currentFilter === 'urdu') {
+        urduEl.style.display = 'block';
+        romanEl.style.display = 'none';
+      }
+    }
+
+    function onFontSizeChange(val) {
+      document.getElementById('fontSizeDisplay').innerText = `${val}px`;
+      document.querySelectorAll('.seg-urdu').forEach(el => el.style.fontSize = `${val}px`);
+      document.querySelectorAll('.seg-roman').forEach(el => el.style.fontSize = `${Math.max(12, val - 2)}px`);
+    }
+
+    function onModelChange() {
+      const val = document.getElementById('selectModel').value;
+      document.getElementById('topModel').innerText = val;
+      document.getElementById('sidebarModelText').innerText = val.split('/')[0];
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        document.body.className = "bg-zinc-100 text-zinc-900 font-sans antialiased h-screen overflow-hidden flex flex-col select-none";
+      } else {
+        html.classList.add('dark');
+        document.body.className = "bg-zinc-950 text-zinc-100 font-sans antialiased h-screen overflow-hidden flex flex-col select-none";
+      }
+    }
+
+    function copyText(encoded) {
+      navigator.clipboard.writeText(decodeURIComponent(encoded));
+      showToast("Copied to clipboard ✓");
+    }
+
+    function copyAllText(type) {
+      if (!allSegments || allSegments.length === 0) return;
+      let str = "";
+      if (type === 'roman') {
+        str = allSegments.map(s => s.roman).join('\n');
+      } else if (type === 'urdu') {
+        str = allSegments.map(s => s.urdu).join('\n');
+      } else if (type === 'srt') {
+        str = allSegments.map((s, i) => `${i + 1}\n${s.start_str} --> ${s.end_str}\n${s.roman}\n`).join('\n');
+      }
+      navigator.clipboard.writeText(str);
+      showToast("Copied entire transcript ✓");
+    }
+
+    function showToast(msg) {
+      let toast = document.getElementById('studioToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'studioToast';
+        toast.className = 'fixed bottom-24 right-8 bg-indigo-600 text-white font-medium text-xs px-4 py-2 rounded-xl shadow-xl shadow-indigo-950/60 transition-all duration-300 opacity-0 pointer-events-none z-50';
+        document.body.appendChild(toast);
+      }
+      toast.innerText = msg;
+      toast.classList.remove('opacity-0');
+      toast.classList.add('opacity-100');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0');
+      }, 2000);
+    }
+
+    function downloadExport(type) {
+      if (!activeMedia) return;
+      const stem = activeMedia.filename.replace(/\.[^/.]+$/, "").replace("_audio", "");
+      let targetFile = "";
+      if (type === 'roman_srt') targetFile = `${stem}_roman.srt`;
+      else if (type === 'urdu_srt') targetFile = `${stem}.srt`;
+      else if (type === 'vtt') targetFile = `${stem}.vtt`;
+      else if (type === 'json') targetFile = `${stem}.json`;
+      else if (type === 'csv') targetFile = `${stem}.csv`;
+      else if (type === 'txt') targetFile = `${stem}.txt`;
+
+      window.open(`/media/${encodeURIComponent(targetFile)}`, '_blank');
+    }
+
+    // 10. Search & Filter Engine
+    let currentSearchQuery = "";
+
+    function onSearchInput(query) {
+      currentSearchQuery = (query || "").trim().toLowerCase();
+      const clearBtn = document.getElementById('btnClearSearch');
+      const countEl = document.getElementById('searchMatchCount');
+
+      if (!currentSearchQuery) {
+        clearBtn.classList.add('hidden');
+        countEl.innerText = '';
+        document.querySelectorAll('.seg-card').forEach(c => {
+          c.classList.remove('opacity-25', 'ring-2', 'ring-amber-500/80');
+          c.style.display = 'flex';
+        });
+        return;
+      }
+
+      clearBtn.classList.remove('hidden');
+      let matchCount = 0;
+      let firstMatchEl = null;
+
+      allSegments.forEach((seg, idx) => {
+        const card = document.getElementById(`seg-${idx}`);
+        if (!card) return;
+
+        const matchUrdu = seg.urdu && seg.urdu.toLowerCase().includes(currentSearchQuery);
+        const matchRoman = seg.roman && seg.roman.toLowerCase().includes(currentSearchQuery);
+
+        if (matchUrdu || matchRoman) {
+          matchCount++;
+          card.classList.remove('opacity-25');
+          card.classList.add('ring-2', 'ring-amber-500/80');
+          card.style.display = 'flex';
+          if (!firstMatchEl) firstMatchEl = card;
+        } else {
+          card.classList.add('opacity-25');
+          card.classList.remove('ring-2', 'ring-amber-500/80');
+        }
+      });
+
+      countEl.innerText = matchCount > 0 ? `${matchCount} found` : 'No matches';
+      if (firstMatchEl && matchCount > 0) {
+        firstMatchEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function clearSearch() {
+      const input = document.getElementById('searchInput');
+      if (input) input.value = '';
+      onSearchInput('');
+    }
+
+    // 11. Inline Subtitle Editing
+    let editingSegmentIdx = -1;
+
+    function toggleEditSegment(idx) {
+      if (editingSegmentIdx >= 0 && editingSegmentIdx !== idx) {
+        cancelEditSegment(editingSegmentIdx);
+      }
+      editingSegmentIdx = idx;
+      const card = document.getElementById(`seg-${idx}`);
+      if (!card) return;
+      const seg = allSegments[idx];
+
+      const contentBox = card.querySelector('.seg-content-box');
+      if (!contentBox) return;
+
+      contentBox.innerHTML = `
+        <div class="edit-box space-y-3 pt-1">
+          <div class="space-y-1">
+            <label class="text-[10px] uppercase font-semibold text-zinc-400">Urdu Script (Right-to-Left)</label>
+            <textarea id="editUrdu-${idx}" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-base text-zinc-100 urdu-text text-right focus:outline-none focus:border-indigo-500 resize-none leading-relaxed" rows="2" dir="rtl">${escapeHtml(seg.urdu)}</textarea>
+          </div>
+          <div class="space-y-1">
+            <label class="text-[10px] uppercase font-semibold text-zinc-400">Roman Urdu / English Subtitle</label>
+            <textarea id="editRoman-${idx}" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-xs text-zinc-200 font-sans focus:outline-none focus:border-indigo-500 resize-none leading-normal" rows="2">${escapeHtml(seg.roman)}</textarea>
+          </div>
+          <div class="flex items-center justify-between pt-1">
+            <span class="text-[11px] font-mono text-zinc-500">${seg.start_str || formatSeconds(seg.start)} --> ${seg.end_str || formatSeconds(seg.end)}</span>
+            <div class="flex items-center space-x-2">
+              <button onclick="event.stopPropagation(); cancelEditSegment(${idx})" class="px-2.5 py-1 text-xs rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition">Cancel</button>
+              <button onclick="event.stopPropagation(); saveEditSegment(${idx})" class="px-3 py-1 text-xs rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow transition">Save Edits</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function cancelEditSegment(idx) {
+      editingSegmentIdx = -1;
+      const card = document.getElementById(`seg-${idx}`);
+      if (!card) return;
+      const seg = allSegments[idx];
+      const newCard = renderSegmentCard(seg, idx);
+      card.replaceWith(newCard);
+      updatePlaybackHighlights();
+    }
+
+    async function saveEditSegment(idx) {
+      const urduVal = document.getElementById(`editUrdu-${idx}`).value.trim();
+      const romanVal = document.getElementById(`editRoman-${idx}`).value.trim();
+
+      allSegments[idx].urdu = urduVal;
+      allSegments[idx].roman = romanVal;
+      editingSegmentIdx = -1;
+
+      // Re-render card immediately
+      const card = document.getElementById(`seg-${idx}`);
+      if (card) {
+        const newCard = renderSegmentCard(allSegments[idx], idx);
+        card.replaceWith(newCard);
+      }
+
+      showToast("Saving transcript edits...");
+      await saveTranscriptToServer();
+      showToast("Edits saved and files updated ✓");
+      updatePlaybackHighlights();
+    }
+
+    async function saveTranscriptToServer() {
+      if (!activeMedia) return;
+      try {
+        const res = await fetch('/api/save-transcript', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: activeMedia.filename,
+            segments: allSegments,
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.segments) {
+          allSegments = data.segments;
+        }
+      } catch (err) {
+        console.error('Failed to save transcript:', err);
+      }
+    }
+
+    // 12. Keyboard Shortcuts
+    function jumpSegment(direction) {
+      if (!allSegments || allSegments.length === 0) return;
+      let nextIdx = activeSectionIdx + direction;
+      nextIdx = Math.max(0, Math.min(allSegments.length - 1, nextIdx));
+      seekTo(allSegments[nextIdx].start);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      if (activeTag === 'input' || activeTag === 'textarea') {
+        if (e.key === 'Escape') {
+          document.activeElement.blur();
+        }
+        return;
+      }
+
+      // Ctrl + F: Focus search
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
+        return;
+      }
+
+      // Space: Play/Pause
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+
+      // J / ArrowLeft: Skip -5s
+      if (e.key.toLowerCase() === 'j' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        skipAudio(-5);
+        return;
+      }
+
+      // L / ArrowRight: Skip +5s
+      if (e.key.toLowerCase() === 'l' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        skipAudio(5);
+        return;
+      }
+
+      // K: Toggle Play/Pause
+      if (e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+
+      // ArrowUp: Previous segment
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        jumpSegment(-1);
+        return;
+      }
+
+      // ArrowDown: Next segment
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        jumpSegment(1);
+        return;
+      }
+    });
+  </script>
+</body>
+</html>
+

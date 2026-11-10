@@ -1,0 +1,11 @@
+# Core speech-to-text pipeline dependencies
+faster-whisper==1.2.1
+ctranslate2==4.8.4
+torch
+numpy
+regex
+tqdm
+
+# Optional audio dependencies
+sounddevice==0.5.6
+

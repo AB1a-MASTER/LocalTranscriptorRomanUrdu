@@ -1,0 +1,27 @@
+# Local Speech Studio - GPU (CUDA 12) Dependencies
+# ==================================================
+
+# Faster-Whisper & CTranslate2 High Performance Inference
+faster-whisper==1.2.1
+ctranslate2==4.8.4
+
+# NVIDIA CUDA 12 runtime DLLs for Windows CTranslate2
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
+nvidia-cuda-runtime-cu12
+
+# Audio processing & Playback
+sounddevice==0.5.6
+soundfile>=0.12.1
+imageio-ffmpeg>=0.4.9
+av>=11.0.0
+numpy>=1.24.0,<2.1.0
+
+# Text processing & Tokenization
+regex
+tqdm
+
+# Optional Urdu fine-tuned models (Transformers)
+transformers>=4.38.0
+huggingface-hub>=0.20.0
+

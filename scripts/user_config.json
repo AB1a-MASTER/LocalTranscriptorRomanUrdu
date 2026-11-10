@@ -1,0 +1,8 @@
+{
+  "theme": "light",
+  "device_mode": "Auto (GPU if available, else CPU)",
+  "model_name": "Whisper Large-v3-Turbo (Faster-Whisper • 809M)",
+  "language_mode": "Urdu + English Mixed",
+  "srt_style": "Grouped (2 - 4 words per subtitle)",
+  "custom_output_dir": ""
+}

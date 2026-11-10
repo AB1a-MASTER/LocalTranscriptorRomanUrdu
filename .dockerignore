@@ -1,0 +1,24 @@
+# Ignore version control and local virtual environments
+.git
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore local caches and downloaded models (mounted via volume instead)
+cache/
+logs/
+models/
+output/
+dist/
+
+# Ignore media and temporary archives
+*.zip
+*.tar
+*.png
+*.jpg
+
+# Ignore legacy scratch folders
+roman-urdu-speech-to-text/
+

@@ -1,0 +1,25 @@
+======================================================================
+  LOCAL SPEECH STUDIO - QUICK START FOR NVIDIA GPU TESTING
+======================================================================
+
+1. INSTALL DEPENDENCIES (Run Once):
+   Double-click:  setup_gpu.bat
+   This sets up the Python virtual environment (.venv) and installs
+   PyTorch with CUDA 12.1 and Faster-Whisper with cuDNN DLLs.
+
+2. RUN APPLICATION:
+   Double-click:  run_gpu.bat  (or run_ui.bat)
+
+3. TEST THE BETTER MODEL:
+   - In the Studio window, look for "CUDA Active (float16)"
+   - In the right-hand panel under "ASR Model", select:
+     "Whisper Large-v3 (High Accuracy • 1550M • GPU/CPU)"
+   - Click "Browse Media Files..." (or pick input/test.wav)
+   - Click "Transcribe Audio"
+
+4. PRE-DOWNLOAD MODELS (Optional):
+   Double-click:  download_models.bat
+
+Detailed guide: See README_GPU_SETUP.md
+======================================================================
+
