@@ -1195,8 +1195,42 @@
       onSearchInput('');
     }
 
-    // 11. Inline Subtitle Editing
+    // 11. Inline Subtitle Editing & Synchronization Engine
     let editingSegmentIdx = -1;
+
+    function handleEditKey(e, idx) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        saveEditSegment(idx);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelEditSegment(idx);
+      }
+    }
+
+    async function transliterateInput(idx) {
+      const urduEl = document.getElementById(`editUrdu-${idx}`);
+      const romanEl = document.getElementById(`editRoman-${idx}`);
+      if (!urduEl || !romanEl) return;
+      const text = urduEl.value.trim();
+      if (!text) return;
+
+      try {
+        showToast("Transliterating to Roman Urdu...");
+        const res = await fetch('/api/transliterate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        if (data.success && data.roman) {
+          romanEl.value = data.roman;
+          showToast("Auto-transliteration applied ✓");
+        }
+      } catch (err) {
+        console.error('Transliteration failed:', err);
+      }
+    }
 
     function toggleEditSegment(idx) {
       if (editingSegmentIdx >= 0 && editingSegmentIdx !== idx) {
@@ -1210,25 +1244,42 @@
       const contentBox = card.querySelector('.seg-content-box');
       if (!contentBox) return;
 
+      // Pause audio to allow focused editing
+      const audio = document.getElementById('audioElement');
+      if (audio && !audio.paused) {
+        togglePlayPause();
+      }
+
       contentBox.innerHTML = `
         <div class="edit-box space-y-3 pt-1">
           <div class="space-y-1">
-            <label class="text-[10px] uppercase font-semibold text-zinc-400">Urdu Script (Right-to-Left)</label>
-            <textarea id="editUrdu-${idx}" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-base text-zinc-100 urdu-text text-right focus:outline-none focus:border-indigo-500 resize-none leading-relaxed" rows="2" dir="rtl">${escapeHtml(seg.urdu)}</textarea>
+            <div class="flex items-center justify-between">
+              <label class="text-[10px] uppercase font-semibold text-zinc-400">Urdu Script (Right-to-Left)</label>
+              <button type="button" onclick="event.stopPropagation(); transliterateInput(${idx})" class="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition flex items-center space-x-1" title="Auto convert Urdu to Roman Urdu">
+                <span>Auto Roman &rarr;</span>
+              </button>
+            </div>
+            <textarea id="editUrdu-${idx}" onkeydown="handleEditKey(event, ${idx})" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-base text-zinc-100 urdu-text text-right focus:outline-none focus:border-indigo-500 resize-none leading-relaxed" rows="2" dir="rtl">${escapeHtml(seg.urdu)}</textarea>
           </div>
           <div class="space-y-1">
             <label class="text-[10px] uppercase font-semibold text-zinc-400">Roman Urdu / English Subtitle</label>
-            <textarea id="editRoman-${idx}" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-xs text-zinc-200 font-sans focus:outline-none focus:border-indigo-500 resize-none leading-normal" rows="2">${escapeHtml(seg.roman)}</textarea>
+            <textarea id="editRoman-${idx}" onkeydown="handleEditKey(event, ${idx})" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-xs text-zinc-200 font-sans focus:outline-none focus:border-indigo-500 resize-none leading-normal" rows="2">${escapeHtml(seg.roman)}</textarea>
           </div>
           <div class="flex items-center justify-between pt-1">
-            <span class="text-[11px] font-mono text-zinc-500">${seg.start_str || formatSeconds(seg.start)} --> ${seg.end_str || formatSeconds(seg.end)}</span>
+            <span class="text-[11px] font-mono text-zinc-500">${seg.start_str || formatSeconds(seg.start)} &rarr; ${seg.end_str || formatSeconds(seg.end)}</span>
             <div class="flex items-center space-x-2">
-              <button onclick="event.stopPropagation(); cancelEditSegment(${idx})" class="px-2.5 py-1 text-xs rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition">Cancel</button>
-              <button onclick="event.stopPropagation(); saveEditSegment(${idx})" class="px-3 py-1 text-xs rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow transition">Save Edits</button>
+              <button type="button" onclick="event.stopPropagation(); cancelEditSegment(${idx})" class="px-2.5 py-1 text-xs rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition" title="Discard changes (Esc)">Cancel (Esc)</button>
+              <button type="button" onclick="event.stopPropagation(); saveEditSegment(${idx})" class="px-3 py-1 text-xs rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow transition" title="Save changes (Ctrl+Enter)">Save Edits (Ctrl+Enter)</button>
             </div>
           </div>
         </div>
       `;
+
+      const urduTa = document.getElementById(`editUrdu-${idx}`);
+      if (urduTa) {
+        urduTa.focus();
+        urduTa.setSelectionRange(urduTa.value.length, urduTa.value.length);
+      }
     }
 
     function cancelEditSegment(idx) {
@@ -1242,14 +1293,50 @@
     }
 
     async function saveEditSegment(idx) {
-      const urduVal = document.getElementById(`editUrdu-${idx}`).value.trim();
-      const romanVal = document.getElementById(`editRoman-${idx}`).value.trim();
+      const urduEl = document.getElementById(`editUrdu-${idx}`);
+      const romanEl = document.getElementById(`editRoman-${idx}`);
+      if (!urduEl || !romanEl) return;
+
+      const urduVal = urduEl.value.trim();
+      let romanVal = romanEl.value.trim();
 
       allSegments[idx].urdu = urduVal;
       allSegments[idx].roman = romanVal;
       editingSegmentIdx = -1;
 
-      // Re-render card immediately
+      // Re-tokenize words immediately client-side to ensure immediate visual & playback sync
+      const uToks = urduVal ? urduVal.split(/\s+/).filter(Boolean) : [];
+      const rToks = romanVal ? romanVal.split(/\s+/).filter(Boolean) : [];
+      const numW = Math.max(uToks.length, rToks.length, 1);
+      const sStart = parseFloat(allSegments[idx].start || 0);
+      const sEnd = parseFloat(allSegments[idx].end || 0);
+      const oldWords = allSegments[idx].words || [];
+
+      let newWords = [];
+      if (oldWords.length === numW && numW > 0) {
+        for (let wIdx = 0; wIdx < numW; wIdx++) {
+          newWords.push({
+            start: oldWords[wIdx].start !== undefined ? oldWords[wIdx].start : sStart,
+            end: oldWords[wIdx].end !== undefined ? oldWords[wIdx].end : sEnd,
+            urdu: uToks[wIdx] || '',
+            roman: rToks[wIdx] || '',
+          });
+        }
+      } else {
+        const dur = Math.max(0.1, sEnd - sStart);
+        const step = dur / numW;
+        for (let wIdx = 0; wIdx < numW; wIdx++) {
+          newWords.push({
+            start: Math.round((sStart + wIdx * step) * 1000) / 1000,
+            end: Math.round((sStart + (wIdx + 1) * step) * 1000) / 1000,
+            urdu: uToks[wIdx] || '',
+            roman: rToks[wIdx] || '',
+          });
+        }
+      }
+      allSegments[idx].words = newWords;
+
+      // Re-render card immediately so edits reflect instantly
       const card = document.getElementById(`seg-${idx}`);
       if (card) {
         const newCard = renderSegmentCard(allSegments[idx], idx);
@@ -1257,12 +1344,17 @@
       }
 
       showToast("Saving transcript edits...");
-      await saveTranscriptToServer();
-      showToast("Edits saved and files updated ✓");
+      await saveTranscriptToServer(idx);
+      showToast("Edits saved and synchronized ✓");
       updatePlaybackHighlights();
+
+      // Refresh Plain Text view if currently active
+      if (currentViewMode === 'plain') {
+        switchViewMode('plain');
+      }
     }
 
-    async function saveTranscriptToServer() {
+    async function saveTranscriptToServer(updatedIdx) {
       if (!activeMedia) return;
       try {
         const res = await fetch('/api/save-transcript', {
@@ -1276,6 +1368,14 @@
         const data = await res.json();
         if (data.success && data.segments) {
           allSegments = data.segments;
+          // Re-render updated card with server canonical timestamps & tokens
+          if (updatedIdx !== undefined && updatedIdx >= 0 && updatedIdx < allSegments.length) {
+            const card = document.getElementById(`seg-${updatedIdx}`);
+            if (card) {
+              const freshCard = renderSegmentCard(allSegments[updatedIdx], updatedIdx);
+              card.replaceWith(freshCard);
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to save transcript:', err);

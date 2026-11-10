@@ -188,65 +188,74 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/load-history":
             query = urllib.parse.parse_qs(parsed.query)
             filename = query.get("name", [""])[0]
-            stem = filename.replace("_roman", "").replace(".srt", "").replace(".txt", "")
+            stem = filename.replace("_roman", "").replace(".srt", "").replace(".txt", "").replace(".json", "")
             out_dir = _APP_ROOT / "output"
             in_dir = _APP_ROOT / "input"
 
             srt_file = out_dir / f"{stem}.srt"
             roman_srt_file = out_dir / f"{stem}_roman.srt"
+            json_file = out_dir / f"{stem}.json"
 
-            if not srt_file.exists():
-                self._send_json({"success": False, "error": f"Transcript {stem}.srt not found"}, status_code=404)
+            if not srt_file.exists() and not json_file.exists():
+                self._send_json({"success": False, "error": f"Transcript {stem} not found"}, status_code=404)
                 return
 
-            def parse_time(ts_str):
-                ts_str = ts_str.strip().replace(",", ".")
-                parts = ts_str.split(":")
-                return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
-
-            def parse_srt(content):
-                blocks = content.strip().split("\n\n")
-                entries = []
-                for b in blocks:
-                    lines = b.strip().splitlines()
-                    if len(lines) >= 3 and "-->" in lines[1]:
-                        t_parts = lines[1].split("-->")
-                        s = parse_time(t_parts[0])
-                        e = parse_time(t_parts[1])
-                        txt = " ".join(lines[2:]).strip()
-                        entries.append({"start": s, "end": e, "text": txt})
-                return entries
-
-            urdu_entries = parse_srt(srt_file.read_text(encoding="utf-8", errors="replace"))
-            roman_entries = parse_srt(roman_srt_file.read_text(encoding="utf-8", errors="replace")) if roman_srt_file.exists() else []
-
             loaded_segs = []
-            for i, ue in enumerate(urdu_entries):
-                re_txt = roman_entries[i]["text"] if i < len(roman_entries) else roman_urdu.transliterate(ue["text"])
-                u_toks = ue["text"].split()
-                r_toks = re_txt.split()
-                n_w = max(len(u_toks), len(r_toks), 1)
-                dur = max(0.1, ue["end"] - ue["start"])
-                step = dur / n_w
-                w_list = []
-                for w_idx in range(n_w):
-                    wu = u_toks[w_idx] if w_idx < len(u_toks) else ""
-                    wr = r_toks[w_idx] if w_idx < len(r_toks) else roman_urdu.transliterate_word(wu)
-                    w_list.append({
-                        "start": round(ue["start"] + w_idx * step, 3),
-                        "end": round(ue["start"] + (w_idx + 1) * step, 3),
-                        "urdu": wu,
-                        "roman": wr,
+            if json_file.exists():
+                try:
+                    j_data = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
+                    loaded_segs = j_data.get("segments", [])
+                except Exception:
+                    loaded_segs = []
+
+            if not loaded_segs and srt_file.exists():
+                def parse_time(ts_str):
+                    ts_str = ts_str.strip().replace(",", ".")
+                    parts = ts_str.split(":")
+                    return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+
+                def parse_srt(content):
+                    blocks = content.strip().split("\n\n")
+                    entries = []
+                    for b in blocks:
+                        lines = b.strip().splitlines()
+                        if len(lines) >= 3 and "-->" in lines[1]:
+                            t_parts = lines[1].split("-->")
+                            s = parse_time(t_parts[0])
+                            e = parse_time(t_parts[1])
+                            txt = " ".join(lines[2:]).strip()
+                            entries.append({"start": s, "end": e, "text": txt})
+                    return entries
+
+                urdu_entries = parse_srt(srt_file.read_text(encoding="utf-8", errors="replace"))
+                roman_entries = parse_srt(roman_srt_file.read_text(encoding="utf-8", errors="replace")) if roman_srt_file.exists() else []
+
+                for i, ue in enumerate(urdu_entries):
+                    re_txt = roman_entries[i]["text"] if i < len(roman_entries) else roman_urdu.transliterate(ue["text"])
+                    u_toks = ue["text"].split()
+                    r_toks = re_txt.split()
+                    n_w = max(len(u_toks), len(r_toks), 1)
+                    dur = max(0.1, ue["end"] - ue["start"])
+                    step = dur / n_w
+                    w_list = []
+                    for w_idx in range(n_w):
+                        wu = u_toks[w_idx] if w_idx < len(u_toks) else ""
+                        wr = r_toks[w_idx] if w_idx < len(r_toks) else roman_urdu.transliterate_word(wu)
+                        w_list.append({
+                            "start": round(ue["start"] + w_idx * step, 3),
+                            "end": round(ue["start"] + (w_idx + 1) * step, 3),
+                            "urdu": wu,
+                            "roman": wr,
+                        })
+                    loaded_segs.append({
+                        "start": ue["start"],
+                        "end": ue["end"],
+                        "start_str": tp.srt_time(ue["start"]).split(",")[0],
+                        "end_str": tp.srt_time(ue["end"]).split(",")[0],
+                        "urdu": ue["text"],
+                        "roman": re_txt,
+                        "words": w_list,
                     })
-                loaded_segs.append({
-                    "start": ue["start"],
-                    "end": ue["end"],
-                    "start_str": tp.srt_time(ue["start"]).split(",")[0],
-                    "end_str": tp.srt_time(ue["end"]).split(",")[0],
-                    "urdu": ue["text"],
-                    "roman": re_txt,
-                    "words": w_list,
-                })
 
             wav_name = None
             for cand in [f"{stem}_audio.wav", f"{stem}.wav", f"{stem}.mp4", f"{stem}.mkv"]:
@@ -372,6 +381,16 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"success": False, "error": str(exc)}, status_code=500)
             return
 
+        if path == "/api/transliterate":
+            try:
+                req = json.loads(post_data.decode("utf-8"))
+                text = req.get("text", "")
+                roman = roman_urdu.transliterate(text)
+                self._send_json({"success": True, "urdu": text, "roman": roman})
+            except Exception as exc:
+                self._send_json({"success": False, "error": str(exc)}, status_code=500)
+            return
+
         if path == "/api/save-transcript":
             try:
                 req = json.loads(post_data.decode("utf-8"))
@@ -418,23 +437,34 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                     csv_rows.append(f"{idx},{s_start:.3f},{s_end:.3f},{start_str},{end_str},{safe_u},{safe_r}")
 
                     w_tokens = s.get("words", [])
-                    u_toks = s_urdu.split()
-                    r_toks = s_roman.split()
+                    u_toks = [w for w in s_urdu.split() if w]
+                    r_toks = [w for w in s_roman.split() if w]
+                    num_w = max(len(u_toks), len(r_toks), 1)
 
-                    if not w_tokens or len(w_tokens) != max(len(u_toks), len(r_toks)):
-                        num_w = max(len(u_toks), len(r_toks), 1)
-                        dur = max(0.1, s_end - s_start)
-                        step = dur / num_w
-                        w_tokens = []
+                    new_w_tokens = []
+                    if len(w_tokens) == num_w:
                         for w_idx in range(num_w):
                             wu = u_toks[w_idx] if w_idx < len(u_toks) else ""
                             wr = r_toks[w_idx] if w_idx < len(r_toks) else roman_urdu.transliterate_word(wu)
-                            w_tokens.append({
+                            new_w_tokens.append({
+                                "start": w_tokens[w_idx].get("start", round(s_start, 3)),
+                                "end": w_tokens[w_idx].get("end", round(s_end, 3)),
+                                "urdu": wu,
+                                "roman": wr,
+                            })
+                    else:
+                        dur = max(0.1, s_end - s_start)
+                        step = dur / num_w
+                        for w_idx in range(num_w):
+                            wu = u_toks[w_idx] if w_idx < len(u_toks) else ""
+                            wr = r_toks[w_idx] if w_idx < len(r_toks) else roman_urdu.transliterate_word(wu)
+                            new_w_tokens.append({
                                 "start": round(s_start + w_idx * step, 3),
                                 "end": round(s_start + (w_idx + 1) * step, 3),
                                 "urdu": wu,
                                 "roman": wr,
                             })
+                    w_tokens = new_w_tokens
 
                     updated_segments.append({
                         "start": s_start,
